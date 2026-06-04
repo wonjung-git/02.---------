@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D 프린팅 오류 유형 분석을 기반으로 한 VR 학습 콘텐츠 개발 및 안내 방식 효과 분석</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d2e;
+    --surface2: #232640;
+    --accent: #6c8bef;
+    --accent2: #a78bfa;
+    --accent3: #34d399;
+    --accent4: #f59e0b;
+    --text: #e8eaf6;
+    --text-muted: #9ba3c4;
+    --border: #2d3155;
+    --card: #1e2236;
+  }
+
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ── NAV ── */
+  #nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 52px;
+    background: rgba(15,17,23,0.95);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+  #nav-title {
+    font-size: 13px;
+    color: var(--text-muted);
+    max-width: 500px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #nav-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  #slide-counter {
+    font-size: 14px;
+    color: var(--text-muted);
+    min-width: 60px;
+    text-align: center;
+  }
+  .nav-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+  }
+  .nav-btn:hover { background: var(--accent); border-color: var(--accent); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* ── PROGRESS BAR ── */
+  #progress-bar {
+    position: fixed;
+    top: 52px; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width .4s ease;
+    z-index: 100;
+  }
+
+  /* ── SLIDE CONTAINER ── */
+  #slides-wrapper {
+    position: fixed;
+    top: 55px; left: 0; right: 0; bottom: 0;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+
+  .slide {
+    display: none;
+    min-height: calc(100vh - 55px);
+    padding: 40px 60px 60px;
+    animation: fadeIn .35s ease;
+  }
+  .slide.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── SLIDE HEADER ── */
+  .slide-header {
+    margin-bottom: 32px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 20px;
+  }
+  .slide-num {
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .slide-title {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .slide-subtitle {
+    font-size: 16px;
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+
+  /* ── CARDS ── */
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 32px;
+  }
+  .card-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .card-title .icon {
+    font-size: 22px;
+  }
+  .card p, .card li {
+    font-size: 18px;
+    line-height: 1.75;
+    color: var(--text);
+  }
+  .card ul, .card ol {
+    padding-left: 22px;
+  }
+  .card li { margin-bottom: 6px; }
+  .card li strong { color: var(--accent2); }
+
+  /* ── HIGHLIGHT BOXES ── */
+  .highlight {
+    background: linear-gradient(135deg, rgba(108,139,239,0.12), rgba(167,139,250,0.12));
+    border: 1px solid rgba(108,139,239,0.35);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: 18px;
+    line-height: 1.7;
+    margin-top: 12px;
+  }
+  .highlight.green {
+    background: linear-gradient(135deg, rgba(52,211,153,0.12), rgba(52,211,153,0.05));
+    border-color: rgba(52,211,153,0.35);
+  }
+  .highlight.amber {
+    background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.05));
+    border-color: rgba(245,158,11,0.35);
+  }
+
+  /* ── STAT BADGES ── */
+  .stat-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .stat-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 22px;
+    text-align: center;
+    flex: 1; min-width: 120px;
+  }
+  .stat-badge .val {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--accent);
+  }
+  .stat-badge .lbl {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* ── TWO COLUMN ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  /* ── TAG ── */
+  .tag {
+    display: inline-block;
+    background: rgba(108,139,239,0.15);
+    border: 1px solid rgba(108,139,239,0.4);
+    color: var(--accent);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-right: 6px;
+    margin-bottom: 4px;
+  }
+  .tag.green {
+    background: rgba(52,211,153,0.15);
+    border-color: rgba(52,211,153,0.4);
+    color: var(--accent3);
+  }
+  .tag.amber {
+    background: rgba(245,158,11,0.15);
+    border-color: rgba(245,158,11,0.4);
+    color: var(--accent4);
+  }
+  .tag.purple {
+    background: rgba(167,139,250,0.15);
+    border-color: rgba(167,139,250,0.4);
+    color: var(--accent2);
+  }
+
+  /* ── FLOW STEPS ── */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .flow-step {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .flow-arrow {
+    font-size: 20px;
+    color: var(--text-muted);
+  }
+
+  /* ── COVER SLIDE ── */
+  .cover-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: calc(100vh - 170px);
+    text-align: center;
+    align-items: center;
+  }
+  .cover-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    border-radius: 8px;
+    padding: 6px 18px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 24px;
+  }
+  .cover-title {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1.3;
+    max-width: 800px;
+    margin-bottom: 16px;
+    color: #ffffff;
+  }
+  .cover-sub {
+    font-size: 18px;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+    max-width: 700px;
+  }
+  .cover-info {
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .cover-info-item { font-size: 15px; color: var(--text-muted); }
+  .cover-info-item strong { color: var(--text); }
+
+  /* ── TOC SLIDE ── */
+  .toc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .toc-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    cursor: pointer;
+    transition: all .2s;
+    font-size: 17px;
+  }
+  .toc-item:hover { border-color: var(--accent); background: var(--surface2); }
+  .toc-num {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 24px;
+  }
+
+  /* ── CHART WRAPPER ── */
+  .chart-wrap {
+    position: relative;
+    height: 280px;
+    margin-top: 14px;
+  }
+
+  /* ── TABLE ── */
+  .table-wrap {
+    overflow-x: auto;
+    margin-top: 14px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 16px;
+  }
+  th {
+    background: var(--surface2);
+    color: var(--accent);
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 2px solid var(--border);
+    font-weight: 700;
+  }
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.6;
+  }
+  tr:hover td { background: rgba(108,139,239,0.05); }
+
+  /* ── DIVIDER ── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 20px 0;
+  }
+
+  /* ── RESULT BOXES ── */
+  .result-sig {
+    background: rgba(52,211,153,0.1);
+    border-left: 4px solid var(--accent3);
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: 17px;
+    margin-top: 10px;
+  }
+  .result-ns {
+    background: rgba(148,163,184,0.08);
+    border-left: 4px solid #475569;
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: 17px;
+    margin-top: 10px;
+  }
+
+  /* ── KEYBOARD HINT ── */
+  #kbd-hint {
+    position: fixed;
+    bottom: 16px;
+    right: 20px;
+    font-size: 12px;
+    color: rgba(155,163,196,0.5);
+    z-index: 100;
+  }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .slide { padding: 24px 20px 40px; }
+    .two-col, .toc-grid { grid-template-columns: 1fr; }
+    .slide-title { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="nav">
+  <div id="nav-title">3D 프린팅 오류 유형 분석을 기반으로 한 VR 학습 콘텐츠 개발 및 안내 방식 효과 분석</div>
+  <div id="nav-controls">
+    <button class="nav-btn" id="btn-prev" title="이전">&#8592;</button>
+    <span id="slide-counter">1 / 17</span>
+    <button class="nav-btn" id="btn-next" title="다음">&#8594;</button>
+  </div>
+</div>
+
+<div id="progress-bar"></div>
+<div id="slides-wrapper">
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 0 · 표지
+════════════════════════════════════════════════════════════════ -->
+<section class="slide active" id="slide-1">
+  <div class="cover-content">
+    <div class="cover-badge">석사학위논문 발표</div>
+    <div class="cover-title">3D 프린팅 오류 유형 분석을 기반으로 한<br>VR 학습 콘텐츠 개발 및 안내 방식 효과 분석</div>
+    <div class="cover-sub">Development of VR Learning Content Based on 3D Printing Error Type Analysis<br>and Effects of Guidance Methods</div>
+
+    <div style="display:flex; gap:24px; justify-content:center; flex-wrap:wrap; margin-bottom:40px;">
+      <span class="tag">Study 1 · 체계적 문헌고찰</span>
+      <span class="tag green">Study 2 · VR 콘텐츠 개발</span>
+      <span class="tag amber">Study 3 · 안내 방식 비교 실험</span>
+    </div>
+
+    <div class="cover-info">
+      <div class="cover-info-item"><strong>발표자</strong> &nbsp; 권슬희</div>
+      <div class="cover-info-item" style="color:var(--border);">|</div>
+      <div class="cover-info-item"><strong>지도교수</strong> &nbsp; 황동욱</div>
+      <div class="cover-info-item" style="color:var(--border);">|</div>
+      <div class="cover-info-item"><strong>소속</strong> &nbsp; 광운대학교 메타버스융합학과</div>
+      <div class="cover-info-item" style="color:var(--border);">|</div>
+      <div class="cover-info-item"><strong>일시</strong> &nbsp; 2026. 06. 04</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 1 · 3D 프린팅 산업의 발전 및 활용
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-2">
+  <div class="slide-header">
+    <div class="slide-num">Introduction 01</div>
+    <div class="slide-title">3D 프린팅 산업의 발전 및 활용</div>
+    <div class="slide-subtitle">기술의 등장과 산업적 영향력</div>
+  </div>
+  <div class="cards">
+
+    <!-- 카드 1: 정의 + AM 공정 분류표 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">📐</span> 3D 프린팅(적층제조, AM)의 정의</div>
+      <div style="display:flex; gap:24px; align-items:center; margin-bottom:18px;">
+        <p style="font-size:17px; line-height:1.75; flex:1;">디지털 모델을 기반으로 재료를 <strong>층층이 적층</strong>하여 3차원 형상을 제작하는 기술. 플라스틱·금속·세라믹·그래핀 등 다양한 재료를 활용해 복잡한 구조를 비교적 빠른 시간 내에 생산할 수 있으며, 기존 절삭 가공과 달리 재료 낭비가 적고 맞춤형 제작이 용이하다 <span style="font-size:14px; color:var(--text-muted);">(Wong & Hernandez, 2012; Low et al., 2017)</span>.</p>
+        <img src="3DP1.png" alt="3D 프린팅 적층 과정" style="width:130px; height:auto; border-radius:10px; flex-shrink:0; margin-right:28px;">
+      </div>
+
+      <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:10px;">표 1. 적층제조 공정의 분류와 각 공정의 정의 및 예시 <span style="font-weight:400;">(ISO/ASTM 52900, 2015)</span></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>공정</th>
+              <th>정의</th>
+              <th>예시 기술</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Binder Jetting (BJ)</td><td>액체 결합제가 분말 재료를 결합하기 위해 선택적으로 분사됨</td><td>ExOne, ZPrinting, VoxelJet</td></tr>
+            <tr><td>Directed Energy Deposition (DED)</td><td>재료가 적층되는 동안 집중된 열에너지로 재료를 용융시킴</td><td>LENS, WAAM, EBAM</td></tr>
+            <tr style="background:rgba(108,139,239,0.13); outline: 2px solid rgba(108,139,239,0.5);">
+              <td><strong style="color:var(--accent); font-size:16px;">★ Material Extrusion (ME)</strong></td>
+              <td><strong style="color:var(--text);">재료가 노즐 또는 오리피스를 통해 선택적으로 압출됨</strong><br><span style="font-size:14px; color:var(--accent); font-weight:600;">→ 본 연구 대상 공정</span></td>
+              <td><strong style="color:var(--accent);">FDM/FFF</strong>, Contour Crafting</td>
+            </tr>
+            <tr><td>Material Jetting (MJ)</td><td>원료 재료의 액적이 선택적으로 분사됨</td><td>PolyJet, MJP, NPJ</td></tr>
+            <tr><td>Powder Bed Fusion (PBF)</td><td>열에너지가 분말 베드의 특정 영역을 선택적으로 융합시킴</td><td>SLS, SLM, DMLS, EBM</td></tr>
+            <tr><td>Sheet Lamination (SHL)</td><td>재료 시트가 결합되어 하나의 부품을 형성함</td><td>LOM, CBAM</td></tr>
+            <tr><td>Vat Photopolymerization (VPP)</td><td>액조 내의 액상 광중합체가 광활성 중합 반응을 통해 선택적으로 경화됨</td><td>SLA, DLP, CLIP</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 카드 2: 기술 발전 흐름 + 시장 규모 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">📈</span> 기술의 발전 흐름과 시장 성장</div>
+      <div class="two-col" style="align-items:start;">
+        <div>
+          <p style="font-size:17px; line-height:1.8;">1984년 <strong>Chuck Hull</strong>에 의해 광경화 방식의 적층제조 장치가 최초로 상용화된 이후 <span style="font-size:14px; color:var(--text-muted);">(Hull, 1986)</span>, 3D 프린팅은 복잡한 형상의 제품을 신속하고 경제적으로 생산한다는 강점을 바탕으로 현대 제조업의 핵심 기술로 자리매김했다.</p>
+          <p style="font-size:17px; line-height:1.8; margin-top:12px;">2023년 기준 시장 가치는 <strong>200억 달러를 초과</strong>하였으며, <strong>연간 11.1% 성장</strong>을 기록했다. 프린터 속도 향상과 재료비 절감에 대한 기대와 함께 대량 생산 분야로의 적용 확대 가능성이 높아지고 있다 <span style="font-size:14px; color:var(--text-muted);">(Paľovčík et al., 2024)</span>.</p>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+          <img src="wohlers report 2024.png" alt="Wohlers Report 2024 시장 성장 그래프" style="width:100%; max-width:340px; border-radius:10px; border:1px solid var(--border);">
+          <div style="width:100%; max-width:340px; display:flex; justify-content:space-between; padding:0 4px;">
+            <span style="font-size:12px; color:var(--accent); font-weight:700;">◀ 2002</span>
+            <span style="font-size:12px; color:var(--accent); font-weight:700;">2023 ▶</span>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); text-align:center;">출처: Wohlers Report 2024</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 카드 3: 산업별 활용 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🏭</span> 산업별 활용 분야</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:14px; margin-top:4px;">
+
+        <div style="background:var(--surface2); border:1px solid rgba(108,139,239,0.3); border-radius:10px; padding:16px;">
+          <div style="font-size:28px; text-align:center; margin-bottom:8px;">🚗</div>
+          <p style="font-size:15px; font-weight:700; color:var(--accent); text-align:center; margin-bottom:8px;">자동차</p>
+          <p style="font-size:14px; line-height:1.65; color:var(--text);">경량 부품 시제품 제작 및 맞춤형 부품 생산. 설계 검증 비용과 개발 기간을 대폭 단축 <span style="color:var(--text-muted);">(Vido et al., 2024)</span>.</p>
+        </div>
+
+        <div style="background:var(--surface2); border:1px solid rgba(52,211,153,0.3); border-radius:10px; padding:16px;">
+          <div style="font-size:28px; text-align:center; margin-bottom:8px;">✈️</div>
+          <p style="font-size:15px; font-weight:700; color:var(--accent3); text-align:center; margin-bottom:8px;">항공우주</p>
+          <p style="font-size:14px; line-height:1.65; color:var(--text);">복잡한 내부 구조를 가진 경량 부품 제작. 기존 가공법으로 불가능한 형상 구현 및 연료 효율 개선 <span style="color:var(--text-muted);">(Joshi & Sheikh, 2015)</span>.</p>
+        </div>
+
+        <div style="background:var(--surface2); border:1px solid rgba(245,158,11,0.3); border-radius:10px; padding:16px;">
+          <div style="font-size:28px; text-align:center; margin-bottom:8px;">🏥</div>
+          <p style="font-size:15px; font-weight:700; color:var(--accent4); text-align:center; margin-bottom:8px;">의료</p>
+          <p style="font-size:14px; line-height:1.65; color:var(--text);">맞춤형 보조기기·의수족·치과 보철물 제작. 수술 전 시뮬레이션용 장기 모형 출력 <span style="color:var(--text-muted);">(Goyanes et al., 2016; Kupfer et al., 2020)</span>.</p>
+        </div>
+
+        <div style="background:var(--surface2); border:1px solid rgba(167,139,250,0.3); border-radius:10px; padding:16px;">
+          <div style="font-size:28px; text-align:center; margin-bottom:8px;">🎓</div>
+          <p style="font-size:15px; font-weight:700; color:var(--accent2); text-align:center; margin-bottom:8px;">교육</p>
+          <p style="font-size:14px; line-height:1.65; color:var(--text);">설계·제작 전 과정 직접 체험으로 실천적 학습 촉진. 창의성·비판적 사고·문제해결력 함양 <span style="color:var(--text-muted);">(Trust & Maloy, 2017; Ozeren et al., 2023)</span>.</p>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 2 · 3D 프린팅 교육의 과제
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-3">
+  <div class="slide-header">
+    <div class="slide-num">Introduction 02</div>
+    <div class="slide-title">3D 프린팅 교육의 과제</div>
+    <div class="slide-subtitle">초보 학습자가 마주하는 진입 장벽과 학습 지원의 필요성</div>
+  </div>
+  <div class="cards">
+
+    <!-- 새 카드: 출력 시 발생할 수 있는 문제점 -->
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <span><span class="icon">⚠️</span> 출력 시 발생할 수 있는 문제점</span>
+        <a href="https://www.simplify3d.com/resources/print-quality-troubleshooting/" target="_blank"
+           style="display:inline-flex; align-items:center; gap:6px; background:rgba(108,139,239,0.15); border:1px solid rgba(108,139,239,0.4); color:var(--accent); border-radius:8px; padding:6px 14px; font-size:13px; font-weight:700; text-decoration:none; transition:all .2s;"
+           onmouseover="this.style.background='rgba(108,139,239,0.3)'" onmouseout="this.style.background='rgba(108,139,239,0.15)'">
+          🔗 Simplify3D Print Quality Guide
+        </a>
+      </div>
+      <p style="font-size:17px; line-height:1.8; margin-bottom:16px;">3D 프린팅은 CAD 모델링부터 슬라이싱, 출력 실행까지 다양한 공정 변수가 맞물려 작동하기 때문에, <strong>숙련자에게도 크고 작은 출력 오류가 빈번하게 발생</strong>한다. 출력 품질 저하, 구조 붕괴, 표면 불량 등은 시간과 재료 손실로 직결되며, 특히 초보 학습자는 오류의 원인을 파악하고 적절히 대처하는 것 자체가 높은 인지 부하를 요구한다.</p>
+      <div class="two-col" style="gap:14px;">
+        <div>
+          <div class="highlight amber">
+            <strong>압출(Extrusion) 관련</strong><br>
+            <span style="font-size:15px;">Under/Over-Extrusion, Stringing, Clogged Extruder, Grinding Filament 등 — 재료 공급량이나 노즐 상태에 따라 발생하는 가장 흔한 오류군</span>
+          </div>
+          <div class="highlight" style="margin-top:10px;">
+            <strong>레이어·구조 관련</strong><br>
+            <span style="font-size:15px;">Layer Shifting, Layer Separation, Warping, Poor Bridging 등 — 적층 과정의 열적·기계적 변수 불안정으로 인한 구조적 결함</span>
+          </div>
+        </div>
+        <div>
+          <div class="highlight">
+            <strong>표면 품질 관련</strong><br>
+            <span style="font-size:15px;">Blobs & Zits, Scars on Top Surface, Lines on Side, Vibrations & Ringing 등 — 출력물 외관 품질에 영향을 주는 오류</span>
+          </div>
+          <div class="highlight amber" style="margin-top:10px;">
+            <strong>베드·부착 관련</strong><br>
+            <span style="font-size:15px;">Not Sticking to Bed, Curling, Gaps in Floor Corners 등 — 첫 레이어 안착 실패로 인해 출력 전체가 실패로 이어지는 오류</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 카드 2: 실습 환경의 구조적 한계 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🏛️</span> 실제 장비 기반 학습의 구조적 한계</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-top:4px;">
+
+        <div style="background:linear-gradient(160deg, rgba(245,158,11,0.08), rgba(245,158,11,0.03)); border:1px solid rgba(245,158,11,0.3); border-radius:12px; padding:20px;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+            <div style="width:36px; height:36px; background:rgba(245,158,11,0.15); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">⏱️</div>
+            <p style="font-size:16px; font-weight:700; color:var(--accent4);">시간적 제약</p>
+          </div>
+          <ul style="font-size:15px; line-height:1.8; padding-left:18px;">
+            <li>소형 모델도 출력 완료까지 <strong>수십 분~수 시간</strong> 소요</li>
+            <li>오류 발생 시 처음부터 재출력 필요</li>
+            <li>반복 실습이 구조적으로 어려움</li>
+          </ul>
+        </div>
+
+        <div style="background:linear-gradient(160deg, rgba(108,139,239,0.08), rgba(108,139,239,0.03)); border:1px solid rgba(108,139,239,0.3); border-radius:12px; padding:20px;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+            <div style="width:36px; height:36px; background:rgba(108,139,239,0.15); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">🏢</div>
+            <p style="font-size:16px; font-weight:700; color:var(--accent);">공간적 제약</p>
+          </div>
+          <ul style="font-size:15px; line-height:1.8; padding-left:18px;">
+            <li>메이커스페이스 등 <strong>전용 공간 확보</strong> 필수</li>
+            <li>장비 수 대비 학습자 수 불균형 → 동시 실습 한계</li>
+            <li>접근성 문제로 자율적 반복 학습 불가</li>
+          </ul>
+        </div>
+
+        <div style="background:linear-gradient(160deg, rgba(167,139,250,0.08), rgba(167,139,250,0.03)); border:1px solid rgba(167,139,250,0.3); border-radius:12px; padding:20px;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+            <div style="width:36px; height:36px; background:rgba(167,139,250,0.15); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">💰</div>
+            <p style="font-size:16px; font-weight:700; color:var(--accent2);">비용적 제약</p>
+          </div>
+          <ul style="font-size:15px; line-height:1.8; padding-left:18px;">
+            <li>보급형 장비도 <strong style="color:var(--accent2);">수십만 원 이상의 초기 비용</strong> 발생</li>
+            <li>필라멘트 등 소모성 재료 비용이 반복 실습 시 누적</li>
+            <li>출력 실패 시 재료·전력 손실이 경제적 부담으로 이어짐</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">💡</span> 대안적 학습 환경의 필요성</div>
+      <p>이러한 제약을 보완할 <strong>대안적 학습 환경</strong>으로 가상현실(VR) 기술이 주목받고 있음. VR은 실제 장비나 재료를 사용하지 않고도 학습자가 공정 전반을 반복적으로 체험할 수 있도록 지원하며, 다양한 교육 분야에서 학습자의 이해도와 돌발 대처 능력을 높이는 효과가 입증되어 왔음.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 3 · 연구 방향
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-4">
+  <div class="slide-header">
+    <div class="slide-num">Introduction 03</div>
+    <div class="slide-title">연구 방향</div>
+    <div class="slide-subtitle">탐색 → 개발 → 검증의 3단계 순차 연구 설계</div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🎯</span> 연구 목적</div>
+      <p>3D 프린팅 과정에서 초보 학습자가 경험하는 오류와 <strong>트러블슈팅 문제를 체계적으로 정리</strong>하고, 이를 <strong>가상현실 기반 학습 콘텐츠</strong>로 구현한 뒤, 콘텐츠 내 <strong>안내 방식의 효과</strong>를 비교하는 것을 목적으로 함.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🔬</span> 세 가지 연구 단계</div>
+      <div style="display:flex; align-items:stretch; gap:0; margin-top:8px;">
+
+        <!-- Study 1 -->
+        <div style="flex:1; background:linear-gradient(160deg, rgba(108,139,239,0.08), rgba(108,139,239,0.03)); border:1px solid rgba(108,139,239,0.35); border-radius:12px; padding:20px 22px;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <div style="background:rgba(108,139,239,0.2); border:1px solid rgba(108,139,239,0.5); border-radius:8px; padding:5px 14px; font-size:13px; font-weight:800; color:var(--accent); letter-spacing:1px;">Study 1</div>
+            <div style="background:rgba(108,139,239,0.15); border-radius:6px; padding:4px 12px; font-size:14px; font-weight:700; color:var(--accent);">탐색</div>
+          </div>
+          <p style="font-size:15px; font-weight:700; color:var(--text); margin-bottom:8px; line-height:1.5;">PRISMA 기반 3D 프린팅 오류 및 해결 전략 체계화</p>
+          <p style="font-size:14px; color:var(--text-muted); line-height:1.75;">3D 프린팅 과정에서 반복적으로 나타나는 오류 유형과 해결 전략을 PRISMA 지침에 따라 체계적으로 문헌고찰하여 분류·정리함.</p>
+        </div>
+
+        <!-- 화살표 1 -->
+        <div style="display:flex; align-items:center; padding:0 14px;">
+          <span style="font-size:22px; color:var(--accent);">→</span>
+        </div>
+
+        <!-- Study 2 -->
+        <div style="flex:1; background:linear-gradient(160deg, rgba(52,211,153,0.08), rgba(52,211,153,0.03)); border:1px solid rgba(52,211,153,0.35); border-radius:12px; padding:20px 22px;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <div style="background:rgba(52,211,153,0.2); border:1px solid rgba(52,211,153,0.5); border-radius:8px; padding:5px 14px; font-size:13px; font-weight:800; color:var(--accent3); letter-spacing:1px;">Study 2</div>
+            <div style="background:rgba(52,211,153,0.15); border-radius:6px; padding:4px 12px; font-size:14px; font-weight:700; color:var(--accent3);">개발</div>
+          </div>
+          <p style="font-size:15px; font-weight:700; color:var(--text); margin-bottom:8px; line-height:1.5;">VR 기반 3D 프린팅 학습 콘텐츠 개발 및 사용성 평가</p>
+          <p style="font-size:14px; color:var(--text-muted); line-height:1.75;">Study 1의 문헌고찰 결과를 반영해 초보 학습자 대상의 VR 기반 학습 콘텐츠를 개발하고, 예비 사용성 평가를 통해 콘텐츠의 완성도를 검증함.</p>
+        </div>
+
+        <!-- 화살표 2 -->
+        <div style="display:flex; align-items:center; padding:0 14px;">
+          <span style="font-size:22px; color:var(--accent4);">→</span>
+        </div>
+
+        <!-- Study 3 -->
+        <div style="flex:1; background:linear-gradient(160deg, rgba(245,158,11,0.08), rgba(245,158,11,0.03)); border:1px solid rgba(245,158,11,0.35); border-radius:12px; padding:20px 22px;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <div style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); border-radius:8px; padding:5px 14px; font-size:13px; font-weight:800; color:var(--accent4); letter-spacing:1px;">Study 3</div>
+            <div style="background:rgba(245,158,11,0.15); border-radius:6px; padding:4px 12px; font-size:14px; font-weight:700; color:var(--accent4);">검증</div>
+          </div>
+          <p style="font-size:15px; font-weight:700; color:var(--text); margin-bottom:8px; line-height:1.5;">안내 방식에 따른 학습 경험 비교 검증</p>
+          <p style="font-size:14px; color:var(--text-muted); line-height:1.75;">텍스트 기반 가이드와 AI 에이전트 가이드를 2×2 혼합요인설계로 비교하여, 안내 방식이 프레즌스·사용성·작업부하에 미치는 영향을 실험적으로 검증함.</p>
+        </div>
+
+      </div>
+    </div>
+
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 4 · 이론적 배경: 3D 프린팅과 트러블슈팅
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-5">
+  <div class="slide-header">
+    <div class="slide-num">Theoretical background 01</div>
+    <div class="slide-title">이론적 배경: 3D 프린팅과 트러블슈팅</div>
+    <div class="slide-subtitle">공정 이해와 초보자의 어려움</div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">⚙️</span> 3D 프린팅 공정 단계</div>
+      <div class="flow">
+        <div class="flow-step">CAD 모델링</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">STL 변환</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">슬라이싱</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">출력 실행</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">후처리</div>
+      </div>
+      <p style="margin-top:16px; font-size:17px;">슬라이싱 과정에서 레이어 두께, 적층 속도, 출력 온도, 지지대 생성 여부 등 다양한 파라미터가 설정되며, 이러한 복합 변수가 출력 안정성과 품질에 직결됨.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🔧</span> 트러블슈팅의 개념</div>
+      <p>시스템이나 작업 과정에서 발생한 오류나 비정상적 상태를 확인하고, 그 원인을 진단한 뒤 적절한 조치를 통해 문제를 해결하는 <strong>일련의 문제해결 과정</strong> (Jonassen & Hung, 2006). 특히 비전문가·초보자는 외부 모델을 다운로드하여 활용하는 경우가 많아 슬라이싱 설정 오류가 빈번.</p>
+      <div class="highlight" style="margin-top:14px;">
+        <strong>대표적 오류 유형:</strong> 출력물 층 분리, 출력 실패, 표면 품질 저하, 구조 붕괴 — 대부분 공정 변수에 대한 이해 부족에서 비롯됨
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🏗️</span> 지지대(Support Structure)의 중요성</div>
+      <div class="two-col">
+        <div>
+          <p style="font-size:16px; color:var(--text-muted); margin-bottom:8px;"><strong>지지대의 역할</strong></p>
+          <p style="font-size:17px;">오버행(overhang)이나 브리지(bridge) 구조와 같이 공중에 떠 있는 형상을 안정적으로 출력하기 위해 임시로 생성되는 구조물. 출력 안정성 향상 및 구조 붕괴 방지 역할.</p>
+        </div>
+        <div>
+          <p style="font-size:16px; color:var(--text-muted); margin-bottom:8px;"><strong>지지대 과다/부족의 문제</strong></p>
+          <ul style="font-size:17px;">
+            <li>과도한 지지대 → 재료 낭비, 후처리 부담 증가</li>
+            <li>불충분한 지지대 → 구조 붕괴, 출력 실패</li>
+            <li>초보자는 판단 자체가 어려움</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 5 · 이론적 배경: VR 기반 학습 콘텐츠
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-6">
+  <div class="slide-header">
+    <div class="slide-num">Theoretical background 02</div>
+    <div class="slide-title">이론적 배경: VR 기반 학습 콘텐츠</div>
+    <div class="slide-subtitle">가상현실의 교육적 특성과 학습 효과</div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🥽</span> VR 기술의 핵심 특성</div>
+      <div class="two-col">
+        <ul>
+          <li><strong>프레즌스(Presence)</strong> — 가상환경에 실제로 존재한다는 심리적 몰입</li>
+          <li><strong>몰입(Immersion)</strong> — 3D 기반 가상환경 내 집중 경험</li>
+          <li><strong>상호작용성(Interactivity)</strong> — 즉각적인 환경 반응</li>
+        </ul>
+        <div>
+          <p style="font-size:16px; color:var(--text-muted); margin-bottom:8px;"><strong>몰입 수준에 따른 분류</strong></p>
+          <div class="highlight" style="margin-top:0;">비몰입형 → 반몰입형 → <strong>완전 몰입형(HMD)</strong></div>
+          <p style="margin-top:10px; font-size:16px;">본 연구: Oculus Quest 2 활용 완전 몰입형 VR</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📚</span> VR 기반 학습의 교육적 효과</div>
+      <ul>
+        <li>안전교육: 실제 상황 재현 → 학습자 이해도·반응속도 향상</li>
+        <li>진로교육: 자기 이해·진로 태도 개선</li>
+        <li>언어학습: 언어 불안감 감소, 회화 능력 향상</li>
+        <li>의료 시뮬레이션: 실습 능력 향상</li>
+        <li>과학 콘텐츠: 공간감각 향상</li>
+      </ul>
+      <div class="highlight green" style="margin-top:12px;">VR은 단순 시각 정보 제공을 넘어, <strong>체험 중심의 인터랙티브 환경</strong>으로 교육적 활용 가치가 높음</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🏗️</span> 3D 프린팅 교육에서 VR의 가능성</div>
+      <p>Mathur et al.(2023)은 적층제조 교육을 위한 VR 기반 몰입형 프레임워크를 제안하였으나, 전문가 수준 대상으로 설계되어 초보 학습자 접근에 한계 존재. 본 연구는 <strong>초보 학습자가 접근 가능한 VR 기반 3D 프린팅 콘텐츠</strong>를 개발하여 이 공백을 채우고자 함.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 6 · 이론적 배경: 안내 방식과 사용자 경험 변인
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-7">
+  <div class="slide-header">
+    <div class="slide-num">Theoretical background 03</div>
+    <div class="slide-title">이론적 배경: 안내 방식과 사용자 경험 변인</div>
+    <div class="slide-subtitle">텍스트 vs. AI 에이전트 가이드, 그리고 측정 변인</div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📄</span> 텍스트 기반 가이드 vs. AI 에이전트 가이드</div>
+      <div class="two-col">
+        <div>
+          <p style="font-size:16px; color:var(--accent); margin-bottom:10px; font-weight:700;">📄 텍스트 기반 가이드</p>
+          <ul style="font-size:17px;">
+            <li>사전 설계된 순차적 절차 안내</li>
+            <li>외재적 부하 감소, 스키마 형성 촉진</li>
+            <li>초보자에게 안정적 학습 환경 제공</li>
+            <li>한계: 맥락·상황에 유연한 대응 어려움</li>
+          </ul>
+        </div>
+        <div>
+          <p style="font-size:16px; color:var(--accent2); margin-bottom:10px; font-weight:700;">🤖 AI 에이전트 가이드</p>
+          <ul style="font-size:17px;">
+            <li>학습자 반응에 따라 설명 조정 가능</li>
+            <li>음성·제스처·표정 등 사회적 단서 활용</li>
+            <li>실시간 피드백으로 부담 완화 기대</li>
+            <li>한계: 과도한 자극 시 인지 부하 증가 우려</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span> 핵심 측정 변인</div>
+      <div class="two-col">
+        <div>
+          <p style="font-size:16px; color:var(--text-muted); margin-bottom:8px;"><strong>프레즌스 (Presence)</strong></p>
+          <p style="font-size:17px;">가상환경에 실제로 존재한다고 느끼는 주관적 경험. Schubert et al.(2001) 척도 재구성, 16문항, 5점 척도. α = .95</p>
+          <p style="font-size:16px; color:var(--text-muted); margin-top:14px; margin-bottom:8px;"><strong>시스템 사용성 (SUS)</strong></p>
+          <p style="font-size:17px;">Brooke(1996) 개발 표준 도구. 10문항, 0~100점. 68점 이상 = 수용 가능. α = .85</p>
+        </div>
+        <div>
+          <p style="font-size:16px; color:var(--text-muted); margin-bottom:8px;"><strong>작업부하 (NASA-TLX)</strong></p>
+          <p style="font-size:17px;">Hart & Staveland(1988) 개발. 6개 하위 차원으로 인지적 부담 측정.</p>
+          <ul style="font-size:16px; margin-top:8px;">
+            <li>정신적 요구 (Mental Demand)</li>
+            <li>신체적 요구 (Physical Demand)</li>
+            <li>시간적 요구 (Temporal Demand)</li>
+            <li>수행 수준 (Performance)</li>
+            <li>노력 (Effort)</li>
+            <li>좌절감 (Frustration)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 7 · Study 1: 연구방법
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-8">
+  <div class="slide-header">
+    <div class="slide-num">Methods 01</div>
+    <div class="slide-title">Study 1: 연구방법</div>
+    <div class="slide-subtitle">PRISMA 기반 3D 프린팅 오류 및 해결 전략 체계화</div>
+  </div>
+  <div class="cards">
+
+    <!-- 카드 1: 문헌 검색 전략 + 그림 2 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🔍</span> 1. 문헌 검색 전략</div>
+      <div class="two-col" style="align-items:start;">
+        <div>
+          <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:6px;">검색 데이터베이스</p>
+          <ul style="font-size:16px; line-height:1.9; margin-bottom:14px;">
+            <li>Google Scholar</li>
+            <li>ScienceDirect</li>
+            <li>PubMed</li>
+            <li>IEEE Xplore</li>
+          </ul>
+          <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:6px;">검색 기간</p>
+          <ul style="font-size:16px; line-height:1.9;">
+            <li>2000년 1월 1일 ~ 2024년 7월 31일</li>
+          </ul>
+        </div>
+        <!-- 그림 2 재현: 키워드 조합 로직 -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+          <p style="font-size:13px; color:var(--text-muted); font-weight:600; text-align:center; margin-bottom:2px;">키워드 조합 로직</p>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <!-- AM 조건 박스 -->
+            <div style="border:2px solid var(--accent); border-radius:8px; padding:12px 16px; background:rgba(108,139,239,0.08); min-width:160px;">
+              <p style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:8px; text-align:center;">AM 관련 조건</p>
+              <p style="font-size:13px; color:var(--text); line-height:1.9; text-align:center;">
+                "3D printing"<br>
+                OR "3D printer"<br>
+                OR "additive manufacturing"
+              </p>
+            </div>
+            <!-- AND -->
+            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+              <div style="width:1px; height:20px; background:var(--border);"></div>
+              <div style="background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:4px 10px; font-size:13px; font-weight:800; color:var(--text-muted);">AND</div>
+              <div style="width:1px; height:20px; background:var(--border);"></div>
+            </div>
+            <!-- Problem 조건 박스 -->
+            <div style="border:2px solid var(--accent2); border-radius:8px; padding:12px 16px; background:rgba(167,139,250,0.08); min-width:160px;">
+              <p style="font-size:12px; font-weight:700; color:var(--accent2); margin-bottom:8px; text-align:center;">Problem 관련 조건</p>
+              <p style="font-size:13px; color:var(--text); line-height:1.9; text-align:center;">
+                "error(s)"<br>
+                OR "guideline(s)"<br>
+                OR "troubleshooting"
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 카드 2: 문헌 선정 과정 + 그림 3 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">📑</span> 2. 문헌 선정 과정</div>
+      <div class="two-col" style="align-items:start;">
+        <div>
+          <p style="font-size:16px; line-height:1.8; margin-bottom:16px;">PRISMA 흐름도에 따라 문헌을 선정했으며, 모든 선별 과정은 자동화 도구 없이 수작업으로 수행함.</p>
+          <p style="font-size:15px; color:var(--accent3); font-weight:700; margin-bottom:6px;">✅ 포함 기준</p>
+          <ul style="font-size:15px; line-height:1.85; margin-bottom:14px;">
+            <li>3D 프린팅의 기술적·방법론적 측면에 초점을 둔 연구</li>
+            <li>학술 논문 (실험 연구, 리뷰 논문, 사례 연구 포함)</li>
+            <li>문제 해결 방안을 구체적으로 제시한 연구</li>
+          </ul>
+          <p style="font-size:15px; color:#f87171; font-weight:700; margin-bottom:6px;">❌ 제외 기준</p>
+          <ul style="font-size:15px; line-height:1.85;">
+            <li>중복 문헌</li>
+            <li>학술 논문 형식이 아닌 문서 (도서, 보고서 등)</li>
+            <li>영어로 작성되지 않은 논문</li>
+            <li>원문 접근이 불가능한 연구</li>
+            <li>연구 문제와 부합하지 않는 연구</li>
+          </ul>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+          <img src="PRISMA.png" alt="PRISMA 흐름도" style="width:67%; border-radius:8px; border:1px solid var(--border);">
+          <p style="font-size:12px; color:var(--text-muted); text-align:center;">연구 선택 과정의 PRISMA 흐름도</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 카드 3: 데이터 추출 및 분석 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span> 3. 데이터 추출 및 분석</div>
+      <div class="two-col" style="align-items:start;">
+        <div>
+          <p style="font-size:16px; color:var(--text-muted); font-weight:700; margin-bottom:8px;">추출 항목</p>
+          <ul style="font-size:16px; line-height:1.8;">
+            <li>연구 제목, 출판 연도, 연구 목적</li>
+            <li>3D 프린팅 과정에서 발생한 주요 문제</li>
+            <li>문제에 대응하는 해결 방안</li>
+          </ul>
+          <div class="highlight" style="margin-top:12px; font-size:15px;">두 명의 연구자가 <strong>독립적으로</strong> 데이터를 추출하고, 의견 불일치 시 제3연구자의 검토를 통해 합의 도출</div>
+        </div>
+        <div>
+          <p style="font-size:16px; color:var(--text-muted); font-weight:700; margin-bottom:8px;">분석 중점</p>
+          <ul style="font-size:16px; line-height:1.8;">
+            <li>출력 오류, 품질 저하, 기계적 고장 등 <strong>반복적 문제 유형</strong> 식별</li>
+            <li>구조화된 코딩으로 문제 유형·해결 방안 일관 분류</li>
+            <li>유사 연구 비교 분석을 통한 결과 간 일관성 평가</li>
+            <li>기존 연구의 한계 및 후속 연구 방향 종합</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 8 · Study 1: 결과
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-9">
+  <div class="slide-header">
+    <div class="slide-num">Result 01</div>
+    <div class="slide-title">Study 1: 결과</div>
+    <div class="slide-subtitle">PRISMA 기반 3D 프린팅 오류 및 해결 전략 체계화</div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🗂️</span> 3가지 핵심 오류 범주</div>
+
+      <!-- ① 설계 및 전처리 -->
+      <div style="background:linear-gradient(135deg,rgba(108,139,239,0.10),rgba(108,139,239,0.04)); border:1px solid rgba(108,139,239,0.35); border-radius:10px; padding:16px 20px; margin-top:10px;">
+        <p style="font-size:16px; font-weight:700; color:var(--accent); margin-bottom:12px;">① 설계 및 전처리 단계의 오류</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;">
+
+          <!-- 1-1 STL 변환 오류 -->
+          <div style="background:var(--surface2); border-radius:8px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+            <img src="1-1.png" style="width:140px; height:100px; object-fit:contain; display:block; margin:0 auto;">
+            <div>
+              <p style="font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px;">CAD → STL 변환 오류</p>
+              <p style="font-size:12px; color:var(--text-muted); line-height:1.6;">CAD 모델을 삼각형 메시로 구성된 STL 파일로 변환하는 과정에서 기하학적 형상이 완전히 보존되지 않아 형상 왜곡 발생</p>
+            </div>
+          </div>
+
+          <!-- 1-2 Stair-step effect -->
+          <div style="background:var(--surface2); border-radius:8px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+            <img src="1-2.png" style="width:140px; height:100px; object-fit:contain; display:block; margin:0 auto;">
+            <div>
+              <p style="font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px;">슬라이싱 파라미터 오류</p>
+              <p style="font-size:12px; color:var(--text-muted); line-height:1.6;">STL → G-code 변환 시 레이어 두께 등 파라미터 설정에 따라 곡면이 계단처럼 표현되는 Stair-step effect 발생</p>
+            </div>
+          </div>
+
+          <!-- 1-3 Overhang 변형 -->
+          <div style="background:var(--surface2); border-radius:8px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+            <img src="1-3.png" style="width:140px; height:100px; object-fit:contain; display:block; margin:0 auto;">
+            <div>
+              <p style="font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px;">적층 방향·Overhang 오류</p>
+              <p style="font-size:12px; color:var(--text-muted); line-height:1.6;">지지대 없이 공중에 뜬 구조(overhang)를 출력할 경우 구조물이 처지거나 무너지며, 심할 경우 출력 전체가 실패함</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ② 기하학적 오차 -->
+      <div style="background:linear-gradient(135deg,rgba(167,139,250,0.10),rgba(167,139,250,0.04)); border:1px solid rgba(167,139,250,0.35); border-radius:10px; padding:16px 20px; margin-top:12px;">
+        <p style="font-size:16px; font-weight:700; color:var(--accent2); margin-bottom:8px;">② 기하학적 오차 및 치수 편차</p>
+        <p style="font-size:15px; line-height:1.75; margin-bottom:14px; color:var(--text);">환자 맞춤형 보철물·임플란트 등 치수 정밀도가 요구되는 의료 분야에서 특히 중요하게 다뤄지는 오류 유형으로, 설계 치수와 실제 출력물 간의 편차가 발생한다. 주요 원인은 다음과 같다.</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;">
+
+          <!-- 2-1 수축·뒤틀림 -->
+          <div style="background:var(--surface2); border-radius:8px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+            <img src="2-1.png" style="width:140px; height:100px; object-fit:contain; display:block; margin:0 auto;">
+            <div>
+              <p style="font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px;">냉각 시 수축·뒤틀림</p>
+              <p style="font-size:12px; color:var(--text-muted); line-height:1.6;">출력 재료가 냉각되는 과정에서 수축이 발생하고, 잔류 응력으로 인해 출력물이 뒤틀리며 치수 편차 발생</p>
+            </div>
+          </div>
+
+          <!-- 2-2 진동·정렬 불량 -->
+          <div style="background:var(--surface2); border-radius:8px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+            <img src="2-2.png" style="width:140px; height:100px; object-fit:contain; display:block; margin:0 auto;">
+            <div>
+              <p style="font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px;">진동·정렬 불량</p>
+              <p style="font-size:12px; color:var(--text-muted); line-height:1.6;">프린터 장비의 진동이나 노즐·베드의 미세한 정렬 불량으로 레이어 간 위치 오차가 누적되어 치수 편차가 발생</p>
+            </div>
+          </div>
+
+          <!-- 2-3 공정 변수 -->
+          <div style="background:var(--surface2); border-radius:8px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+            <img src="2-3.png" style="width:140px; height:100px; object-fit:contain; display:block; margin:0 auto;">
+            <div>
+              <p style="font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px;">공정 변수 불안정성</p>
+              <p style="font-size:12px; color:var(--text-muted); line-height:1.6;">ME의 압출 온도·속도, PBF의 레이저 출력·스캔 속도 등 다양한 공정 변수가 불안정할 경우 설계 치수와 실제 출력 간 편차가 발생</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ③ 공정 중 탐지 실패 -->
+      <div style="background:linear-gradient(135deg,rgba(52,211,153,0.10),rgba(52,211,153,0.04)); border:1px solid rgba(52,211,153,0.35); border-radius:10px; padding:16px 20px; margin-top:12px;">
+        <p style="font-size:16px; font-weight:700; color:var(--accent3); margin-bottom:12px;">③ 공정 중 오류 탐지 및 대응의 실패</p>
+        <div style="display:flex; gap:20px; align-items:center;">
+          <ul style="font-size:15px; line-height:1.85; padding-left:20px; flex:1;">
+            <li>적층제조는 수 시간 동안 연속 운용되며, 온도 변동·진동·부품 마모가 출력 품질에 <strong>실시간 영향</strong>을 미침.</li>
+            <li>초기 설정이 정밀해도 출력 중 예기치 못한 변수로 <strong>출력 실패</strong>가 발생할 수 있으며, 장시간 출력에서 위험이 커짐.</li>
+          </ul>
+          <div style="background:var(--surface2); border-radius:8px; padding:14px; flex-shrink:0;">
+            <img src="3.png" style="width:360px; height:160px; object-fit:contain; display:block;">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🛠️</span> 해결 접근법 분류 및 문헌 분포</div>
+      <div class="chart-wrap" style="height:240px;">
+        <canvas id="chart-study1"></canvas>
+      </div>
+      <p style="font-size:15px; color:var(--text-muted); margin-top:8px; text-align:center;">* 소프트웨어 기반 알고리즘 해결책이 전체적으로 가장 많이 연구됨</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span> 해결 전략 요약</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>오류 범주</th><th>소프트웨어 기반</th><th>하드웨어 기반</th><th>사용자 제어</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>설계 및 전처리</td><td>적응형 슬라이싱, AI 설계 도구</td><td>—</td><td>DfAM, 방향 최적화</td></tr>
+            <tr><td>기하학적 오차</td><td>보정 알고리즘, ML 예측</td><td>가열 챔버, 폐루프 제어</td><td>파라미터 가이드라인</td></tr>
+            <tr><td>공정 중 탐지</td><td>머신러닝, 신경망 탐지</td><td>카메라, 열화상, 진동 센서</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 9 · Study 1: 논의
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-10">
+  <div class="slide-header">
+    <div class="slide-num">Discussion 01</div>
+    <div class="slide-title">Study 1: 논의</div>
+    <div class="slide-subtitle">PRISMA 기반 3D 프린팅 오류 및 해결 전략 체계화</div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🧭</span> Study 1 결과의 종합적 의미</div>
+      <p style="font-size:17px; line-height:1.75;">PRISMA 기반 문헌고찰 결과, 3D 프린팅 오류는 <strong>① 설계 및 전처리 오류</strong>, <strong>② 기하학적 오차 및 치수 편차</strong>, <strong>③ 공정 중 오류 탐지 및 대응 실패</strong>로 수렴하였다. 이는 출력 실패가 단일 원인보다 <strong>출력 전 준비, 실제 출력 조건, 실시간 모니터링의 연결 구조</strong> 안에서 발생한다는 점을 보여준다.</p>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:stretch;">
+
+      <div style="background:linear-gradient(135deg,rgba(108,139,239,0.12),rgba(108,139,239,0.04)); border:1px solid rgba(108,139,239,0.38); border-radius:14px; padding:22px 24px;">
+        <p style="font-size:17px; font-weight:800; color:var(--accent); margin-bottom:12px;">① 설계 및 전처리 오류</p>
+        <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:6px;">결과 해석</p>
+        <p style="font-size:16px; line-height:1.7; margin-bottom:12px;">CAD-STL 변환, 슬라이싱, 적층 방향, 지지대 판단 오류는 출력 이전에 발생하지만 이후 공정 전체로 누적된다. 특히 곡면 왜곡, 계단 현상, 오버행 변형은 출력 후 수정이 어렵기 때문에 <strong>사전 예방형 오류</strong>로 해석된다.</p>
+        <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:6px;">해결 방향</p>
+        <ul style="font-size:15px; line-height:1.7; padding-left:18px;">
+          <li>DfAM 기반 설계 체크리스트와 출력 전 검증</li>
+          <li>고해상도 Mesh, 적응형 슬라이싱, G-code 품질 점검</li>
+          <li>출력 방향 및 지지대 자동 추천 가이드 제공</li>
+        </ul>
+      </div>
+
+      <div style="background:linear-gradient(135deg,rgba(167,139,250,0.12),rgba(167,139,250,0.04)); border:1px solid rgba(167,139,250,0.38); border-radius:14px; padding:22px 24px;">
+        <p style="font-size:17px; font-weight:800; color:var(--accent2); margin-bottom:12px;">② 기하학적 오차 및 치수 편차</p>
+        <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:6px;">결과 해석</p>
+        <p style="font-size:16px; line-height:1.7; margin-bottom:12px;">치수 편차는 열수축, 잔류응력, 진동, 정렬 불량, 공정 변수 불안정성이 복합적으로 작용한 결과이다. 따라서 단순한 파라미터 조정만으로는 한계가 있으며, <strong>공정 전반의 품질 관리 문제</strong>로 보아야 한다.</p>
+        <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:6px;">해결 방향</p>
+        <ul style="font-size:15px; line-height:1.7; padding-left:18px;">
+          <li>수축을 고려한 설계 보정 및 형상 보정 알고리즘</li>
+          <li>3D 스캐닝 기반 출력 후 검증과 장비 보정</li>
+          <li>ML 기반 변형 예측, 파라미터 최적화, 폐루프 제어(실시간 자동 보정)</li>
+        </ul>
+      </div>
+
+      <div style="background:linear-gradient(135deg,rgba(52,211,153,0.12),rgba(52,211,153,0.04)); border:1px solid rgba(52,211,153,0.38); border-radius:14px; padding:22px 24px;">
+        <p style="font-size:17px; font-weight:800; color:var(--accent3); margin-bottom:12px;">③ 공정 중 오류 탐지 및 대응 실패</p>
+        <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:6px;">결과 해석</p>
+        <p style="font-size:16px; line-height:1.7; margin-bottom:12px;">장시간 연속 출력에서는 층간 적층 오류, 압출 불균형, 진동, 정렬 이상이 실시간으로 누적될 수 있다. 오류 위치와 특성을 늦게 파악하면 재료 낭비와 품질 저하가 커지므로 <strong>조기 탐지와 즉각 대응</strong>이 핵심이다.</p>
+        <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:6px;">해결 방향</p>
+        <ul style="font-size:15px; line-height:1.7; padding-left:18px;">
+          <li>카메라, 열화상, 진동 센서 기반 실시간 모니터링</li>
+          <li>다중 센서 데이터와 신경망 기반 이상 탐지</li>
+          <li>자동 보정, 출력 중지, 사용자 알림을 결합한 피드백 체계</li>
+        </ul>
+      </div>
+
+      <div style="background:linear-gradient(135deg,rgba(245,158,11,0.12),rgba(245,158,11,0.04)); border:1px solid rgba(245,158,11,0.38); border-radius:14px; padding:22px 24px;">
+        <p style="font-size:17px; font-weight:800; color:var(--accent4); margin-bottom:12px;">④ 해결 접근법의 분포와 시사점</p>
+        <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:6px;">결과 해석</p>
+        <p style="font-size:16px; line-height:1.7; margin-bottom:12px;">문헌에서는 소프트웨어 기반 알고리즘이 가장 두드러졌고, 하드웨어 시스템과 사용자 제어 전략은 문제 범주에 따라 선택적으로 활용되었다. 이는 오류 해결이 <strong>예측, 보정, 실시간 제어, 사용자 판단 지원</strong>을 통합하는 방향으로 이동하고 있음을 의미한다.</p>
+        <p style="font-size:15px; color:var(--text-muted); font-weight:700; margin-bottom:6px;">교육적 적용</p>
+        <ul style="font-size:15px; line-height:1.7; padding-left:18px;">
+          <li>오류 원인과 해결 절차를 VR 시나리오로 구조화</li>
+          <li>초보자가 사전 점검, 설정 조정, 후처리를 단계별로 연습</li>
+          <li>기술적 트러블슈팅을 학습 경험 설계의 핵심 내용으로 전환</li>
+        </ul>
+      </div>
+
+    </div>
+
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 10 · Study 2: 연구방법
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-11">
+  <div class="slide-header">
+    <div class="slide-num">Methods 02</div>
+    <div class="slide-title">Study 2: 연구방법</div>
+    <div class="slide-subtitle">가상현실 기반 3D 프린팅 학습 콘텐츠 개발</div>
+  </div>
+  <div class="cards">
+
+    <!-- 카드 1: 개발 환경 및 절차 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🛠️</span> 개발 환경 및 절차</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;">
+
+        <!-- 개발 환경 -->
+        <div style="background:var(--surface2); border-radius:10px; padding:16px;">
+          <p style="font-size:14px; font-weight:700; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.05em;">개발 환경</p>
+          <ul style="font-size:15px; line-height:1.9; padding-left:18px;">
+            <li><strong>개발 엔진:</strong> Unity</li>
+            <li><strong>HMD 기기:</strong> Oculus Quest 2</li>
+          </ul>
+        </div>
+
+        <!-- 개발 절차 -->
+        <div>
+          <p style="font-size:14px; font-weight:700; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.05em;">개발 절차</p>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="background:linear-gradient(135deg,rgba(108,139,239,0.15),rgba(108,139,239,0.05)); border:1px solid rgba(108,139,239,0.4); border-radius:8px; padding:10px 14px; font-size:14px; line-height:1.5; text-align:center; min-width:130px;">
+              <div style="font-size:18px; margin-bottom:4px;">🏭</div>
+              <div style="font-weight:700; color:var(--accent); margin-bottom:3px;">메이커스페이스</div>
+              <div style="font-size:12px; color:var(--text-muted);">3D 프린팅 과정<br>관찰 및 체험</div>
+            </div>
+            <div style="color:var(--text-muted); font-size:18px;">→</div>
+            <div style="background:linear-gradient(135deg,rgba(167,139,250,0.15),rgba(167,139,250,0.05)); border:1px solid rgba(167,139,250,0.4); border-radius:8px; padding:10px 14px; font-size:14px; line-height:1.5; text-align:center; min-width:130px;">
+              <div style="font-size:18px; margin-bottom:4px;">🧱</div>
+              <div style="font-weight:700; color:var(--accent2); margin-bottom:3px;">Unity 가상환경</div>
+              <div style="font-size:12px; color:var(--text-muted);">공간 구성 요소 및<br>작업 흐름 구현</div>
+            </div>
+            <div style="color:var(--text-muted); font-size:18px;">→</div>
+            <div style="background:linear-gradient(135deg,rgba(52,211,153,0.15),rgba(52,211,153,0.05)); border:1px solid rgba(52,211,153,0.4); border-radius:8px; padding:10px 14px; font-size:14px; line-height:1.5; text-align:center; min-width:130px;">
+              <div style="font-size:18px; margin-bottom:4px;">🥽</div>
+              <div style="font-weight:700; color:var(--accent3); margin-bottom:3px;">VR 체험 환경</div>
+              <div style="font-size:12px; color:var(--text-muted);">인터랙션 및<br>안내 체계 구현</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 카드 2: 학습 콘텐츠 시나리오 설계 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🗺️</span> 학습 콘텐츠 시나리오 설계</div>
+      <div style="display:grid; grid-template-columns:1fr auto 1fr auto 1fr auto 1fr; gap:0; align-items:stretch; margin-top:4px;">
+
+        <!-- Step 1 -->
+        <div style="background:linear-gradient(160deg,rgba(108,139,239,0.12),rgba(108,139,239,0.04)); border:1px solid rgba(108,139,239,0.4); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+            <span style="background:var(--accent); color:white; border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;">1</span>
+            <span style="font-size:15px; font-weight:700; color:var(--accent);">3D 모델 획득</span>
+          </div>
+          <p style="font-size:13px; color:var(--text-muted); line-height:1.65;">직접 모델링 대신 온라인 플랫폼 <strong style="color:var(--text);">Thingiverse</strong>에서 모델 다운로드</p>
+          <p style="font-size:12px; color:var(--text-muted); line-height:1.6; border-top:1px solid rgba(108,139,239,0.2); padding-top:8px;">초보자가 복잡한 모델링 과정 없이 출력에 필요한 파일을 획득할 수 있도록 접근성 고려</p>
+        </div>
+
+        <!-- Arrow -->
+        <div style="display:flex; align-items:center; padding:0 6px; color:var(--text-muted); font-size:18px;">→</div>
+
+        <!-- Step 2 -->
+        <div style="background:linear-gradient(160deg,rgba(167,139,250,0.12),rgba(167,139,250,0.04)); border:1px solid rgba(167,139,250,0.4); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+            <span style="background:var(--accent2); color:white; border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;">2</span>
+            <span style="font-size:15px; font-weight:700; color:var(--accent2);">슬라이싱 설정</span>
+          </div>
+          <p style="font-size:13px; color:var(--text-muted); line-height:1.65;">실제 메이커스페이스 사용 소프트웨어 <strong style="color:var(--text);">Cubicreator</strong> 적용</p>
+          <p style="font-size:12px; color:var(--text-muted); line-height:1.6; border-top:1px solid rgba(167,139,250,0.2); padding-top:8px;">복잡한 슬라이싱 절차 전체를 녹화·편집하여 <strong style="color:var(--text);">비디오 자료</strong>로 제공 → 단계별 자막으로 학습 부담 완화</p>
+        </div>
+
+        <!-- Arrow -->
+        <div style="display:flex; align-items:center; padding:0 6px; color:var(--text-muted); font-size:18px;">→</div>
+
+        <!-- Step 3 -->
+        <div style="background:linear-gradient(160deg,rgba(52,211,153,0.12),rgba(52,211,153,0.04)); border:1px solid rgba(52,211,153,0.4); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+            <span style="background:var(--accent3); color:white; border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;">3</span>
+            <span style="font-size:15px; font-weight:700; color:var(--accent3);">출력 실행</span>
+          </div>
+          <p style="font-size:13px; color:var(--text-muted); line-height:1.65;"><strong style="color:var(--text);">실제 3D 프린터와 동일</strong>한 UI를 직접 인터랙션</p>
+          <p style="font-size:12px; color:var(--text-muted); line-height:1.6; border-top:1px solid rgba(52,211,153,0.2); padding-top:8px;">가상 공간 내 안내를 따라 출력 절차 진행 → 개념 이해를 넘어 실제 작업 흐름 경험</p>
+        </div>
+
+        <!-- Arrow -->
+        <div style="display:flex; align-items:center; padding:0 6px; color:var(--text-muted); font-size:18px;">→</div>
+
+        <!-- Step 4 -->
+        <div style="background:linear-gradient(160deg,rgba(245,158,11,0.12),rgba(245,158,11,0.04)); border:1px solid rgba(245,158,11,0.4); border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+            <span style="background:var(--accent4); color:white; border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;">4</span>
+            <span style="font-size:15px; font-weight:700; color:var(--accent4);">결과물 확인</span>
+          </div>
+          <!-- Two conditions -->
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="background:rgba(245,158,11,0.1); border-radius:6px; padding:6px 8px;">
+              <p style="font-size:12px; font-weight:700; color:var(--accent4); margin-bottom:2px;">지지대 없음</p>
+              <p style="font-size:12px; color:var(--text-muted); line-height:1.5;">슬라이싱 단계에서 모델 방향 조정 → 지지대 없이 안정 출력</p>
+            </div>
+            <div style="background:rgba(245,158,11,0.1); border-radius:6px; padding:6px 8px;">
+              <p style="font-size:12px; font-weight:700; color:var(--accent4); margin-bottom:2px;">지지대 있음</p>
+              <p style="font-size:12px; color:var(--text-muted); line-height:1.5;">출력 후 지지대 제거 인터랙션 → 후처리 트러블슈팅 경험</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 11 · Study 2: 결과
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-12">
+  <div class="slide-header">
+    <div class="slide-num">Result 02</div>
+    <div class="slide-title">Study 2: 결과</div>
+    <div class="slide-subtitle">가상현실 기반 3D 프린팅 학습 콘텐츠 개발</div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🎬</span> VR 학습 콘텐츠 시연 영상</div>
+      <div style="display:flex; justify-content:center;">
+        <video controls style="width:100%; max-height:340px; border-radius:10px; background:#000;">
+          <source src="3DP_Guide.mp4" type="video/mp4">
+        </video>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📈</span> 사용성 평가 결과 요약</div>
+      <div class="stat-row">
+        <div class="stat-badge">
+          <div class="val">4.50</div>
+          <div class="lbl">프레즌스<br><small>(5점 만점)</small></div>
+        </div>
+        <div class="stat-badge">
+          <div class="val">4.62</div>
+          <div class="lbl">몰입감·플로우<br><small>(5점 만점)</small></div>
+        </div>
+        <div class="stat-badge" style="border-color: var(--accent3);">
+          <div class="val" style="color:var(--accent3);">82.08</div>
+          <div class="lbl">SUS 점수<br><small>(기준: 68점)</small></div>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-top:20px;">
+        <div style="min-width:0;">
+          <p style="text-align:center; font-size:13px; color:var(--text-muted); margin-bottom:6px;">프레즌스</p>
+          <div class="chart-wrap" style="height:260px; width:100%;"><canvas id="chart-study2-presence"></canvas></div>
+        </div>
+        <div style="min-width:0;">
+          <p style="text-align:center; font-size:13px; color:var(--text-muted); margin-bottom:6px;">플로우</p>
+          <div class="chart-wrap" style="height:260px; width:100%;"><canvas id="chart-study2-flow"></canvas></div>
+        </div>
+        <div style="min-width:0;">
+          <p style="text-align:center; font-size:13px; color:var(--text-muted); margin-bottom:6px;">SUS</p>
+          <div class="chart-wrap" style="height:260px; width:100%;"><canvas id="chart-study2-sus"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 12 · Study 2: 논의
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-13">
+  <div class="slide-header">
+    <div class="slide-num">Discussion 02</div>
+    <div class="slide-title">Study 2: 논의</div>
+    <div class="slide-subtitle">가상현실 기반 3D 프린팅 학습 콘텐츠 개발</div>
+  </div>
+  <div class="cards">
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🧠</span> 높은 프레즌스의 배경</div>
+        <p>USB 오브젝트 획득·이동, 프린터 UI 확인, 지지대 분리 등 실제 3D 프린팅 작업의 <strong>행동 흐름을 가상 환경에서 모사</strong>한 요소들이 학습자가 콘텐츠 내부에 존재한다고 느끼는 프레즌스를 높이는 데 기여한 것으로 해석됨.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🌊</span> 높은 몰입감·플로우의 배경</div>
+        <p>시작화면 → 모델 다운로드 → 슬라이싱 → 출력 → 후처리로 이어지는 <strong>순차적 구조</strong>가 학습 흐름 추적을 가능하게 함. 단순 수동적 정보 수용이 아닌 직접 오브젝트를 선택·이동·삽입하는 방식의 상호작용이 플로우를 유발.</p>
+      </div>
+
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">✅</span> 긍정적인 사용성 평가의 배경</div>
+      <ul style="margin-top:4px;">
+        <li>복잡한 모델링 작업 대신 <strong>정해진 모델 다운로드</strong>로 단순화하여, 3D 프린팅 공정 흐름과 핵심 문제 상황에 집중 가능</li>
+        <li>슬라이싱 단계를 <strong>동영상으로 제공</strong>하고 단계별 자막을 활용하여, 복잡한 파라미터 설정의 학습 부담 완화</li>
+        <li>실제 장비 없이도 <strong>출력 오류와 후처리 과정을 안전하게 간접 학습</strong>할 수 있어, 물리적·경제적 부담 없이 반복 체험 가능</li>
+      </ul>
+      <p style="margin-top:14px; font-size:17px; line-height:1.75; color:var(--text-muted);">이러한 설계 요소들이 복합적으로 작용하여 VR이 3D 프린팅의 절차적 학습과 문제 상황 이해를 지원하는 효과적인 입문 학습 환경으로 기능할 수 있음.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 13 · Study 3: 연구방법
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-14">
+  <div class="slide-header">
+    <div class="slide-num">Methods 03</div>
+    <div class="slide-title">Study 3: 연구방법</div>
+    <div class="slide-subtitle">텍스트 가이드와 AI 에이전트 가이드의 효과 비교</div>
+  </div>
+  <div class="cards">
+
+    <!-- 카드 1: 실험참여자와 측정 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">👥</span> 실험참여자와 측정</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;">
+
+        <!-- 참여자 정보 -->
+        <div>
+          <p style="font-size:14px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px;">참여자</p>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+            <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+              <div style="font-size:28px; font-weight:800; color:var(--accent);">30명</div>
+              <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">총 참여자</div>
+            </div>
+            <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+              <div style="font-size:22px; font-weight:800; color:var(--accent2);">23<span style="font-size:14px; font-weight:600;">세</span></div>
+              <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">평균 연령 (SD=2.08)</div>
+            </div>
+          </div>
+          <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:10px;">
+            <div style="display:flex; align-items:center; gap:12px; justify-content:center;">
+              <div style="text-align:center;">
+                <div style="font-size:22px; font-weight:800; color:var(--accent);">14명</div>
+                <div style="font-size:13px; color:var(--text-muted);">남성</div>
+              </div>
+              <div style="width:1px; height:32px; background:var(--border);"></div>
+              <div style="text-align:center;">
+                <div style="font-size:22px; font-weight:800; color:var(--accent2);">16명</div>
+                <div style="font-size:13px; color:var(--text-muted);">여성</div>
+              </div>
+            </div>
+          </div>
+          <div style="background:rgba(108,139,239,0.08); border:1px solid rgba(108,139,239,0.25); border-radius:8px; padding:10px 14px; font-size:14px; color:var(--text-muted); line-height:1.7;">
+            서울 소재 대학교 학부생 · 3D 프린터 및 관련 장비 <strong style="color:var(--text);">미경험자</strong>만 선정
+          </div>
+        </div>
+
+        <!-- 측정 도구 -->
+        <div>
+          <p style="font-size:14px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px;">측정 도구</p>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="background:linear-gradient(135deg,rgba(108,139,239,0.1),rgba(108,139,239,0.03)); border:1px solid rgba(108,139,239,0.35); border-radius:10px; padding:14px 16px; display:flex; align-items:center; gap:14px;">
+              <div style="background:rgba(108,139,239,0.2); border-radius:8px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">🧠</div>
+              <div>
+                <p style="font-size:15px; font-weight:700; color:var(--accent);">프레즌스</p>
+                <p style="font-size:13px; color:var(--text-muted); margin-top:2px;">16문항 · 5점 척도 · 신뢰도 α = .95</p>
+              </div>
+            </div>
+            <div style="background:linear-gradient(135deg,rgba(52,211,153,0.1),rgba(52,211,153,0.03)); border:1px solid rgba(52,211,153,0.35); border-radius:10px; padding:14px 16px; display:flex; align-items:center; gap:14px;">
+              <div style="background:rgba(52,211,153,0.2); border-radius:8px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">📱</div>
+              <div>
+                <p style="font-size:15px; font-weight:700; color:var(--accent3);">시스템 사용성 (SUS)</p>
+                <p style="font-size:13px; color:var(--text-muted); margin-top:2px;">10문항 · 0~100점 · 신뢰도 α = .85</p>
+              </div>
+            </div>
+            <div style="background:linear-gradient(135deg,rgba(245,158,11,0.1),rgba(245,158,11,0.03)); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:14px 16px; display:flex; align-items:center; gap:14px;">
+              <div style="background:rgba(245,158,11,0.2); border-radius:8px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">⚡</div>
+              <div>
+                <p style="font-size:15px; font-weight:700; color:var(--accent4);">작업부하 (NASA-TLX)</p>
+                <p style="font-size:13px; color:var(--text-muted); margin-top:2px;">6개 하위 차원 · 인지적 부담 측정</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 카드 2: 실험처치물 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🧪</span> 실험처치물</div>
+
+      <!-- 공통 기반 -->
+      <div style="background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 18px; margin-bottom:14px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+        <span style="font-size:14px; color:var(--text-muted); font-weight:700;">공통 기반</span>
+        <span style="font-size:14px; color:var(--text);">Study 2에서 개발한 3D 프린팅 학습 콘텐츠</span>
+        <span style="color:var(--border);">|</span>
+        <span style="font-size:14px; color:var(--text);">개발 엔진: <strong>Unity</strong></span>
+        <span style="color:var(--border);">|</span>
+        <span style="font-size:14px; color:var(--text);">HMD: <strong>Oculus Quest 2</strong></span>
+        <span style="color:var(--border);">|</span>
+        <span style="font-size:14px; color:var(--text);">전체 절차는 두 조건에서 <strong>동일</strong>하게 유지</span>
+      </div>
+
+      <!-- 두 독립변인 -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+
+        <!-- 독립변인 1: 안내 방식 -->
+        <div style="border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+          <div style="background:var(--surface2); padding:10px 16px; border-bottom:1px solid var(--border);">
+            <p style="font-size:14px; font-weight:700; color:var(--text-muted);">독립변인 1 · 안내 방식 <span style="font-size:12px; font-weight:400;">(참여자 간 요인)</span></p>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0;">
+            <div style="padding:14px 16px; border-right:1px solid var(--border);">
+              <p style="font-size:14px; font-weight:700; color:var(--accent); margin-bottom:8px;">📄 텍스트 기반 가이드</p>
+              <ul style="font-size:13px; color:var(--text-muted); line-height:1.75; padding-left:16px;">
+                <li>패널 형태로 단계별 안내문 제공</li>
+                <li>동일한 순서·동일한 양의 정보</li>
+                <li>모든 참여자에게 사전 설계된 절차 제공</li>
+              </ul>
+            </div>
+            <div style="padding:14px 16px;">
+              <p style="font-size:14px; font-weight:700; color:var(--accent2); margin-bottom:8px;">🤖 AI 에이전트 가이드</p>
+              <ul style="font-size:13px; color:var(--text-muted); line-height:1.75; padding-left:16px;">
+                <li>Convai(Unity Asset Store) 활용</li>
+                <li>각 공간에 배치, 언제든 질문 가능</li>
+                <li>립싱크·표정·행동으로 풍부한 상호작용</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 독립변인 2: 지지대 유무 -->
+        <div style="border:1px solid var(--border); border-radius:12px; overflow:hidden;">
+          <div style="background:var(--surface2); padding:10px 16px; border-bottom:1px solid var(--border);">
+            <p style="font-size:14px; font-weight:700; color:var(--text-muted);">독립변인 2 · 출력물 지지대 유무 <span style="font-size:12px; font-weight:400;">(참여자 내 요인)</span></p>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0;">
+            <div style="padding:14px 16px; border-right:1px solid var(--border);">
+              <p style="font-size:14px; font-weight:700; color:var(--accent3); margin-bottom:8px;">🟢 지지대 없음</p>
+              <ul style="font-size:13px; color:var(--text-muted); line-height:1.75; padding-left:16px;">
+                <li>슬라이싱 과정에서 적층 방향 조정</li>
+                <li>지지대 없이 안정적 출력 수행</li>
+              </ul>
+            </div>
+            <div style="padding:14px 16px;">
+              <p style="font-size:14px; font-weight:700; color:var(--accent4); margin-bottom:8px;">🟡 지지대 있음</p>
+              <ul style="font-size:13px; color:var(--text-muted); line-height:1.75; padding-left:16px;">
+                <li>슬라이싱 과정에서 지지대 활성화</li>
+                <li>출력 이후 지지대 제거(후처리) 포함</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 카드 3: 실험 과정 -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🗺️</span> 실험 과정</div>
+
+      <!-- 설계 요약 -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
+        <div style="background:linear-gradient(135deg,rgba(108,139,239,0.1),rgba(108,139,239,0.03)); border:1px solid rgba(108,139,239,0.35); border-radius:10px; padding:14px 16px;">
+          <p style="font-size:13px; font-weight:700; color:var(--accent); margin-bottom:6px;">2 × 2 혼합요인설계</p>
+          <p style="font-size:13px; color:var(--text-muted); line-height:1.7;">안내 방식(텍스트·AI) × 지지대 유무(없음·있음). 안내 방식은 무작위 배정, 지지대 유무 순서는 <strong style="color:var(--text);">역균형화</strong>로 순서 효과 통제.</p>
+        </div>
+        <div style="background:linear-gradient(135deg,rgba(52,211,153,0.1),rgba(52,211,153,0.03)); border:1px solid rgba(52,211,153,0.35); border-radius:10px; padding:14px 16px; display:flex; align-items:center; gap:12px;">
+          <div style="font-size:28px; font-weight:800; color:var(--accent3); flex-shrink:0;">30분</div>
+          <p style="font-size:13px; color:var(--text-muted); line-height:1.7;">전체 실험 소요 시간<br><span style="color:var(--text);">사전 안내 + VR 체험 × 2조건 + 설문 응답</span></p>
+        </div>
+      </div>
+
+      <!-- 절차 흐름 -->
+      <p style="font-size:13px; font-weight:700; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.05em;">실험 절차 흐름</p>
+      <div style="display:flex; align-items:stretch; gap:0; overflow-x:auto;">
+
+        <div style="background:linear-gradient(160deg,rgba(108,139,239,0.1),rgba(108,139,239,0.03)); border:1px solid rgba(108,139,239,0.35); border-radius:10px; padding:12px 14px; min-width:130px; flex:1;">
+          <p style="font-size:20px; text-align:center; margin-bottom:6px;">📋</p>
+          <p style="font-size:13px; font-weight:700; color:var(--accent); text-align:center; margin-bottom:6px;">사전 안내</p>
+          <p style="font-size:12px; color:var(--text-muted); line-height:1.6; text-align:center;">전체 절차·HMD 착용·조작법 안내, 무작위 조건 배정</p>
+        </div>
+
+        <div style="display:flex; align-items:center; padding:0 6px; color:var(--text-muted); font-size:16px; flex-shrink:0;">→</div>
+
+        <div style="background:linear-gradient(160deg,rgba(167,139,250,0.1),rgba(167,139,250,0.03)); border:1px solid rgba(167,139,250,0.35); border-radius:10px; padding:12px 14px; min-width:130px; flex:1;">
+          <p style="font-size:20px; text-align:center; margin-bottom:6px;">🥽</p>
+          <p style="font-size:13px; font-weight:700; color:var(--accent2); text-align:center; margin-bottom:6px;">VR 입장</p>
+          <p style="font-size:12px; color:var(--text-muted); line-height:1.6; text-align:center;">배정된 안내 방식으로 가상현실 입장</p>
+        </div>
+
+        <div style="display:flex; align-items:center; padding:0 6px; color:var(--text-muted); font-size:16px; flex-shrink:0;">→</div>
+
+        <div style="background:linear-gradient(160deg,rgba(52,211,153,0.1),rgba(52,211,153,0.03)); border:1px solid rgba(52,211,153,0.35); border-radius:10px; padding:12px 14px; min-width:160px; flex:1.2;">
+          <p style="font-size:20px; text-align:center; margin-bottom:6px;">🖨️</p>
+          <p style="font-size:13px; font-weight:700; color:var(--accent3); text-align:center; margin-bottom:6px;">3D 프린팅 체험 (× 2조건)</p>
+          <p style="font-size:12px; color:var(--text-muted); line-height:1.6; text-align:center;">모델 다운로드 → 슬라이싱 → 출력 → 결과 확인<br>(지지대 있음 조건: 후처리 포함)</p>
+        </div>
+
+        <div style="display:flex; align-items:center; padding:0 6px; color:var(--text-muted); font-size:16px; flex-shrink:0;">→</div>
+
+        <div style="background:linear-gradient(160deg,rgba(245,158,11,0.1),rgba(245,158,11,0.03)); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:12px 14px; min-width:130px; flex:1;">
+          <p style="font-size:20px; text-align:center; margin-bottom:6px;">📝</p>
+          <p style="font-size:13px; font-weight:700; color:var(--accent4); text-align:center; margin-bottom:6px;">설문 응답</p>
+          <p style="font-size:12px; color:var(--text-muted); line-height:1.6; text-align:center;">각 조건 체험 직후 프레즌스·SUS·NASA-TLX 응답</p>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 14 · Study 3: 결과
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-15">
+  <div class="slide-header">
+    <div class="slide-num">Result 03</div>
+    <div class="slide-title">Study 3: 결과</div>
+    <div class="slide-subtitle">텍스트 가이드와 AI 에이전트 가이드의 효과 비교</div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🧩</span> 3D 프린팅 안내 방식 x 지지대 유무</div>
+      <p style="font-size:17px; color:var(--text-muted); line-height:1.7; margin-bottom:14px;">
+        혼합설계 반복측정 ANOVA 결과, 안내 방식(텍스트 기반 가이드 vs. AI 에이전트 가이드)과 지지대 유무는 프레즌스와 사용성 평가를 유의하게 변화시키지 않았다. 전체 작업부하 역시 유의한 차이는 없었으나, 하위 차원에서는 Performance와 Effort에서 부분적 차이가 확인됨.
+      </p>
+
+      <!-- 3개 비유의 결과 한 줄 -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+        <div class="result-ns">
+          <strong>프레즌스</strong><br>
+          상호작용 효과 비유의<br>
+          <span style="font-size:14px;">[F(1, 28) = .89, p &gt; .05, ηp² = .03]</span>
+        </div>
+        <div class="result-ns">
+          <strong>사용성 평가가(SUS)</strong><br>
+          상호작용 효과 비유의<br>
+          <span style="font-size:14px;">[F(1, 28) = .77, p &gt; .05, ηp² = .03]</span>
+        </div>
+        <div class="result-ns">
+          <strong>전체 작업부하</strong><br>
+          상호작용 효과 비유의<br>
+          <span style="font-size:14px;">[F(1, 28) = 1.99, p &gt; .05, ηp² = .07]</span>
+        </div>
+      </div>
+
+      <!-- 유의한 하위차원 -->
+      <div class="result-sig" style="margin-top:12px;">
+        <p style="font-size:17px; font-weight:700; line-height:1.8; color:var(--text);">
+          Performance는 상호작용 효과가 유의함 [F(1, 28) = 4.20, p &lt; .05, ηp² = .13].<br>
+          Effort는 안내 방식 주효과가 유의함 [F(1, 28) = 7.19, p &lt; .05, ηp² = .20].
+        </p>
+        <p style="font-size:14px; color:var(--text-muted); line-height:1.75; margin-top:8px;">
+          <strong style="color:var(--text-muted);">Performance:</strong> 지지대가 있는 텍스트 기반 가이드 조건이 가장 높았고(M = 4.80), 지지대가 있는 AI 에이전트 조건이 가장 낮았다(M = 4.27). 복잡한 지지대 상황에서 단계별 절차가 명확한 텍스트 가이드가 수행 확신을 높였을 가능성.<br>
+          <strong style="color:var(--text-muted);">Effort:</strong> 텍스트 기반 가이드(M = 2.97)보다 AI 에이전트 가이드(M = 2.07)가 낮아, AI 에이전트가 주관적 노력 부담을 줄였을 가능성.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🌐</span> 프레즌스: 두 안내 방식 모두 기준값 3점 초과</div>
+      <div class="two-col" style="align-items:center;">
+        <div class="chart-wrap" style="height:245px;">
+          <canvas id="chart-study3-presence"></canvas>
+        </div>
+        <div>
+          <p style="font-size:17px; line-height:1.75;">
+            텍스트 기반 가이드의 프레즌스 평균은 <strong>4.59점</strong>(SD = .55), AI 에이전트 가이드는 <strong>4.44점</strong>(SD = .54)으로 모두 중립 기준값인 3점보다 유의하게 높았다.
+          </p>
+          <div class="stat-row" style="margin-top:16px;">
+            <div class="stat-badge"><div class="val">4.59</div><div class="lbl">텍스트 기반 가이드</div></div>
+            <div class="stat-badge"><div class="val">4.44</div><div class="lbl">AI 에이전트 가이드</div></div>
+          </div>
+          <p style="font-size:14px; color:var(--text-muted); margin-top:12px; line-height:1.6;">t(29) = 15.83, p &lt; .001 / t(29) = 14.71, p &lt; .001</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📈</span> 사용성 평가(SUS): 두 안내 방식 모두 기준값 68점 초과</div>
+      <div class="two-col" style="align-items:center;">
+        <div class="chart-wrap" style="height:245px;">
+          <canvas id="chart-study3-usability"></canvas>
+        </div>
+        <div>
+          <p style="font-size:17px; line-height:1.75;">
+            사용성 평가는 텍스트 기반 가이드 <strong>78.17점</strong>(SD = 13.06), AI 에이전트 가이드 <strong>76.50점</strong>(SD = 15.79)으로 나타났다. 두 조건 모두 수용 가능한 사용성 기준인 68점을 상회하였다.
+          </p>
+          <div class="stat-row" style="margin-top:16px;">
+            <div class="stat-badge"><div class="val">78.17</div><div class="lbl">텍스트 기반 가이드</div></div>
+            <div class="stat-badge"><div class="val">76.50</div><div class="lbl">AI 에이전트 가이드</div></div>
+          </div>
+          <p style="font-size:14px; color:var(--text-muted); margin-top:12px; line-height:1.6;">두 안내 방식 모두 사용자가 콘텐츠를 수용 가능한 수준 이상으로 이용할 수 있음을 보여줌.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📉</span> 작업부하: 두 안내 방식 모두 기준값 3점 미만</div>
+      <div class="two-col" style="align-items:center;">
+        <div class="chart-wrap" style="height:245px;">
+          <canvas id="chart-study3-workload"></canvas>
+        </div>
+        <div>
+          <p style="font-size:17px; line-height:1.75;">
+            전체 작업부하는 텍스트 기반 가이드 <strong>1.77점</strong>(SD = .38), AI 에이전트 가이드 <strong>1.64점</strong>(SD = .46)으로 모두 기준값 3점보다 유의하게 낮았다. 즉, 두 안내 방식 모두 과도한 부담 없이 이용 가능한 수준으로 설계되었다.
+          </p>
+          <div class="stat-row" style="margin-top:16px;">
+            <div class="stat-badge"><div class="val">1.77</div><div class="lbl">텍스트 기반 가이드</div></div>
+            <div class="stat-badge"><div class="val">1.64</div><div class="lbl">AI 에이전트 가이드</div></div>
+          </div>
+          <p style="font-size:14px; color:var(--text-muted); margin-top:12px; line-height:1.6;">t(29) = -17.62, p &lt; .001 / t(29) = -16.11, p &lt; .001</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 15 · Study 3: 논의
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-16">
+  <div class="slide-header">
+    <div class="slide-num">Discussion 03</div>
+    <div class="slide-title">Study 3: 논의</div>
+    <div class="slide-subtitle">텍스트 가이드와 AI 에이전트 가이드의 효과 비교</div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">✅</span> 두 안내 방식 모두 수용 가능한 학습 경험 제공</div>
+      <p>안내 방식과 지지대 유무는 프레즌스와 사용성에서 유의한 차이를 보이지 않았으나, 두 안내 방식 모두 기준값을 유의하게 상회함. 즉, <strong>텍스트 기반·AI 에이전트 안내 모두 VR 교육 콘텐츠 안내 방식으로 활용 가능</strong>함을 의미.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🤖</span> 작업부하 중 Effort: 낮은 AI 에이전트 평가 해석</div>
+      <div class="two-col">
+        <div>
+          <div class="highlight green">
+            <strong>긍정적 해석</strong><br>AI 에이전트가 학습자의 절차적 이해를 보조하여 콘텐츠 이용에 필요한 주관적 노력 수준을 낮춤. 긴 텍스트 해석 부담 감소.
+          </div>
+        </div>
+        <div>
+          <div class="highlight amber">
+            <strong>부정적 해석</strong><br>초보 학습자가 무엇을 질문해야 할지 모르고 개방형 상호작용을 충분히 활용하지 못했을 가능성. 능동적 탐색 대신 수동적 이용.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span> 작업부하 중 Performance: 상호작용 효과 해석</div>
+      <ul>
+        <li>지지대가 있는(복잡한) 상황에서 <strong>텍스트 기반 가이드가 더 높은 수행 확신</strong>을 제공</li>
+        <li>인지부하이론으로 해석하면, AI 에이전트의 개방형 구조가 초보자에게 <strong>외재적 부하</strong>로 작용했을 가능성</li>
+        <li>사전 설계된 순차 안내가 복잡한 문제 상황에서 심리적 안정감 제공에 유리</li>
+      </ul>
+      <div class="highlight" style="margin-top:12px;">
+        <strong>설계 시사점:</strong> AI 에이전트 도입 시 질문 예시, 단계별 프롬프트, 선택형 안내 등 <strong>보조적 장치를 함께 제공</strong>해야 함. 구조화된 안내와 개방형 상호작용의 적절한 결합이 필요.
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 16 · 결론
+════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-17">
+  <div class="slide-header">
+    <div class="slide-num">Conclusion</div>
+    <div class="slide-title">결론</div>
+    <div class="slide-subtitle">3D 프린팅 교육의 새로운 가능성</div>
+  </div>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🔬</span> 세 연구의 종합</div>
+      <p style="font-size:16px; color:var(--text-muted); line-height:1.75; margin-bottom:16px; border-left:3px solid var(--accent); padding-left:14px;">3D 프린팅 기술의 교육적 활용 가능성을 높이기 위해, 출력 실패와 트러블슈팅 문제를 체계적으로 이해하고 이를 초보 학습자가 경험적으로 학습할 수 있는 VR 기반 교육 환경으로 구현하고자 함</p>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+
+        <div class="highlight">
+          <p style="font-weight:700; color:var(--accent); margin-bottom:10px;">Study 1: PRISMA 기반 3D 프린팅 오류 및 해결 전략 체계화</p>
+          <ul style="font-size:17px; line-height:1.8; padding-left:20px;">
+            <li>3D 프린팅 실패의 주요 원인과 해결 전략을 분석 <span style="color:var(--text-muted); font-size:15px;">(설계 및 전처리 단계의 오류 / 기하학적 오차 및 치수 편차 / 공정 중 오류 탐지 및 대응의 실패)</span></li>
+            <li>3D 프린팅의 실패는 여러 단계에서 연쇄적으로 발생할 수 있음</li>
+            <li>출력 실패가 발생하는 구조와 원리를 학습자가 이해할 수 있도록 돕는 교육적 접근이 필요함</li>
+          </ul>
+        </div>
+
+        <div class="highlight green">
+          <p style="font-weight:700; color:var(--accent3); margin-bottom:10px;">Study 2: 가상현실 기반 3D 프린팅 학습 콘텐츠 개발</p>
+          <ul style="font-size:17px; line-height:1.8; padding-left:20px;">
+            <li>Study 1에서 도출된 3D 프린팅 오류 및 트러블슈팅 논의를 바탕으로, 초보 학습자를 위한 VR 기반 3D 프린팅 학습 콘텐츠를 개발</li>
+            <li>학습자는 실제 장비나 재료를 사용하지 않고도 지지대가 필요한 상황과 지지대를 최소화할 수 있는 상황을 비교하며 경험할 수 있음</li>
+            <li>파일럿 테스트 결과 프레즌스와 플로우는 높은 수준으로 나타났으며, SUS 점수 역시 수용 가능한 사용성 기준을 상회함</li>
+          </ul>
+        </div>
+
+        <div class="highlight amber">
+          <p style="font-weight:700; color:var(--accent4); margin-bottom:10px;">Study 3: 텍스트 가이드와 AI 에이전트 가이드의 효과 비교</p>
+          <ul style="font-size:17px; line-height:1.8; padding-left:20px;">
+            <li>Study 2에서 개발된 VR 기반 3D 프린팅 학습 콘텐츠를 바탕으로, 텍스트 기반 가이드와 AI 에이전트 가이드 및 지지대 유무에 따라 학습자의 프레즌스, 사용성, 작업부하에 미치는 영향을 분석</li>
+            <li>안내 방식과 지지대 유무는 프레즌스와 사용성 평가에서 통계적으로 유의한 차이 없음, 단 두 조건 모두 기준값보다 높게 나타남</li>
+            <li>AI 에이전트 가이드는 Effort를 낮추는 경향을 보였으나, Performance 요인에서는 문제 상황에서 텍스트 기반 가이드가 더 높은 수행 확신을 제공할 가능성이 나타남. 초보 학습자에게 AI 에이전트의 개방형 상호작용이 항상 효과적으로 작동하는 것은 아니며, 일정 수준의 구조화된 안내가 함께 제공될 필요가 있음</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">💡</span> 학문적 의의</div>
+      <ul>
+        <li>3D 프린팅 실패를 <strong>기술적 결함이 아닌 교육 내용</strong>으로 재구성한 관점 제시</li>
+        <li>문헌 기반 문제 분석 ↔ 교육 콘텐츠 개발을 연결하는 연구 흐름 제시</li>
+        <li>AI 에이전트 기반 안내 방식의 교육적 효과를 VR 맥락에서 실증적으로 검토</li>
+        <li>초보 학습자가 실제 장비 사용 전 안전하게 절차·트러블슈팅을 경험하는 VR 환경의 가능성 제시</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🔮</span> 한계 및 향후 연구 방향</div>
+      <div class="two-col">
+        <div>
+          <p style="font-size:16px; color:var(--text-muted); margin-bottom:8px;"><strong>한계점</strong></p>
+          <ul style="font-size:17px;">
+            <li>참여자 30명의 소규모 표본</li>
+            <li>단일 대학교 학부생으로 한정</li>
+            <li>하드웨어 기반 트러블슈팅 미포함</li>
+          </ul>
+        </div>
+        <div>
+          <p style="font-size:16px; color:var(--text-muted); margin-bottom:8px;"><strong>향후 연구 방향</strong></p>
+          <ul style="font-size:17px;">
+            <li>더 많은 참여자 대상 학습 효과 검증</li>
+            <li>구조화 안내+AI 에이전트 혼합 방식 탐색</li>
+            <li>실제 장비 사용 전·후 비교 연구</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+</div><!-- /slides-wrapper -->
+
+<div id="kbd-hint">← → 키 또는 버튼으로 이동</div>
+
+<script>
+// ── NAVIGATION ──────────────────────────────────────────
+const TOTAL = 17;
+let current = 1;
+
+function goTo(n) {
+  if (n < 1 || n > TOTAL) return;
+  document.querySelector('.slide.active').classList.remove('active');
+  document.getElementById('slide-' + n).classList.add('active');
+  document.getElementById('slides-wrapper').scrollTop = 0;
+  current = n;
+  document.getElementById('slide-counter').textContent = n + ' / ' + TOTAL;
+  document.getElementById('btn-prev').disabled = n === 1;
+  document.getElementById('btn-next').disabled = n === TOTAL;
+  document.getElementById('progress-bar').style.width = ((n / TOTAL) * 100) + '%';
+  if (n === 9 && !window._chart8) renderChart8();
+  if (n === 12 && !window._chart11) renderChart11();
+  if (n === 15 && !window._chart14) renderChart14();
+}
+
+document.getElementById('btn-prev').addEventListener('click', () => goTo(current - 1));
+document.getElementById('btn-next').addEventListener('click', () => goTo(current + 1));
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(current + 1);
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') goTo(current - 1);
+});
+
+// init
+document.getElementById('btn-prev').disabled = true;
+document.getElementById('progress-bar').style.width = ((1/TOTAL)*100) + '%';
+
+// ── CHARTS ──────────────────────────────────────────────
+const chartDefaults = {
+  plugins: {
+    legend: {
+      labels: { color: '#9ba3c4', font: { size: 13 } }
+    }
+  },
+  scales: {
+    x: { ticks: { color: '#9ba3c4', font: { size: 12 } }, grid: { color: 'rgba(45,49,85,0.6)' } },
+    y: { ticks: { color: '#9ba3c4', font: { size: 12 } }, grid: { color: 'rgba(45,49,85,0.6)' } }
+  }
+};
+
+function renderChart8() {
+  window._chart8 = true;
+  const ctx = document.getElementById('chart-study1').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['설계·전처리 오류', '기하학적 오차·치수 편차', '공정 중 탐지 실패'],
+      datasets: [
+        {
+          label: '소프트웨어 기반',
+          data: [8, 31, 12],
+          backgroundColor: 'rgba(108,139,239,0.7)',
+          borderColor: 'rgba(108,139,239,1)',
+          borderWidth: 1, borderRadius: 5
+        },
+        {
+          label: '하드웨어 기반',
+          data: [0, 7, 12],
+          backgroundColor: 'rgba(167,139,250,0.7)',
+          borderColor: 'rgba(167,139,250,1)',
+          borderWidth: 1, borderRadius: 5
+        },
+        {
+          label: '사용자 제어 전략',
+          data: [6, 28, 0],
+          backgroundColor: 'rgba(52,211,153,0.7)',
+          borderColor: 'rgba(52,211,153,1)',
+          borderWidth: 1, borderRadius: 5
+        }
+      ]
+    },
+    options: {
+      ...chartDefaults,
+      responsive: true, maintainAspectRatio: false,
+      plugins: { ...chartDefaults.plugins, title: { display: false } }
+    }
+  });
+}
+
+function renderChart11() {
+  window._chart11 = true;
+
+  // 기준선을 그리는 인라인 플러그인 (텍스트 없이 선만)
+  const refLinePlugin = {
+    id: 'refLine',
+    afterDraw(chart) {
+      const ref = chart.options._refValue;
+      if (ref == null) return;
+      const { ctx, scales: { y }, chartArea: { left, right } } = chart;
+      const yPos = y.getPixelForValue(ref);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(245,158,11,0.85)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(left, yPos);
+      ctx.lineTo(right, yPos);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  function makeBarChart(canvasId, value, yMin, yMax, refValue, color) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      plugins: [refLinePlugin],
+      data: {
+        labels: [''],
+        datasets: [{
+          data: [value],
+          backgroundColor: [color.replace('1)', '0.7)')],
+          borderColor: [color],
+          borderWidth: 2,
+          borderRadius: 8,
+          barPercentage: 0.5,
+          categoryPercentage: 0.9
+        }]
+      },
+      options: {
+        _refValue: refValue,
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: { label: (c) => ' ' + c.raw.toFixed(2) + '점' }
+          }
+        },
+        scales: {
+          ...chartDefaults.scales,
+          x: { ...chartDefaults.scales.x },
+          y: { ...chartDefaults.scales.y, min: yMin, max: yMax }
+        }
+      }
+    });
+  }
+
+  makeBarChart('chart-study2-presence', 4.50, 1, 5,   3,  'rgba(108,139,239,1)');
+  makeBarChart('chart-study2-flow',     4.62, 1, 5,   3,  'rgba(167,139,250,1)');
+  makeBarChart('chart-study2-sus',      82.08, 0, 100, 68, 'rgba(52,211,153,1)');
+}
+
+function renderChart14() {
+  window._chart14 = true;
+
+  // 기준선 플러그인 (그림 14·15·16 스타일)
+  const baselinePlugin = {
+    id: 'baselineLine',
+    afterDraw(chart) {
+      const ref = chart.options._baseline;
+      if (ref == null) return;
+      const { ctx, scales: { y }, chartArea: { left, right } } = chart;
+      const yPos = y.getPixelForValue(ref);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(245,158,11,0.85)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(left, yPos);
+      ctx.lineTo(right, yPos);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  // 데이터 레이블 플러그인 (바 위에 M 값 표시)
+  const dataLabelPlugin = {
+    id: 'dataLabel',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      chart.data.datasets.forEach((dataset, i) => {
+        const meta = chart.getDatasetMeta(i);
+        meta.data.forEach((bar, index) => {
+          const val = dataset.data[index];
+          ctx.save();
+          ctx.fillStyle = '#e8eaf6';
+          ctx.font = 'bold 13px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(val, bar.x, bar.y - 8);
+          ctx.restore();
+        });
+      });
+    }
+  };
+
+  function makeS3Chart(canvasId, labels, values, colors, yMin, yMax, baseline, yTitle) {
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    new Chart(el.getContext('2d'), {
+      type: 'bar',
+      plugins: [baselinePlugin, dataLabelPlugin],
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: colors.map(c => c.replace('1)', '0.65)')),
+          borderColor: colors,
+          borderWidth: 2,
+          borderRadius: 8,
+          barPercentage: 0.55,
+          categoryPercentage: 0.8
+        }]
+      },
+      options: {
+        _baseline: baseline,
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => ' M = ' + c.raw } }
+        },
+        scales: {
+          x: { ticks: { color: '#9ba3c4', font: { size: 12 } }, grid: { color: 'rgba(45,49,85,0.5)' } },
+          y: {
+            min: yMin, max: yMax,
+            ticks: { color: '#9ba3c4', font: { size: 12 } },
+            grid: { color: 'rgba(45,49,85,0.5)' },
+            title: { display: true, text: yTitle, color: '#9ba3c4', font: { size: 12 } }
+          }
+        }
+      }
+    });
+  }
+
+  const labels = ['AI 에이전트 가이드', '텍스트 기반 가이드'];
+  const blueColors   = ['rgba(167,139,250,1)', 'rgba(108,139,239,1)'];
+
+  // 그림 14 — 프레즌스
+  makeS3Chart('chart-study3-presence', labels, [4.44, 4.59], blueColors, 1, 5, 3, '평균 (5점 척도)');
+  // 그림 15 — 사용성(SUS)
+  makeS3Chart('chart-study3-usability', labels, [76.50, 78.17], blueColors, 0, 100, 70, 'SUS 점수');
+  // 그림 16 — 작업부하
+  makeS3Chart('chart-study3-workload', labels, [1.64, 1.77], blueColors, 1, 5, 3, '평균 (5점 척도, 낮을수록 좋음)');
+}
+</script>
+</body>
+</html>
